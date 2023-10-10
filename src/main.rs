@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Formatter;
 
@@ -40,6 +41,7 @@ impl Store {
 enum QueryError {
     ParseError(std::num::ParseIntError),
     MissingParameters,
+    InvalidRange,
 }
 
 impl std::fmt::Display for QueryError {
@@ -49,6 +51,7 @@ impl std::fmt::Display for QueryError {
                 write!(f, "Cannot parse parameter: {}", err)
             }
             QueryError::MissingParameters => write!(f, "Missing parameter"),
+            QueryError::InvalidRange => write!(f, "Invalid range"),
         }
     }
 }
@@ -84,7 +87,13 @@ async fn get_questions(
     store: Store,
 ) -> Result<impl Reply, Rejection> {
     if !params.is_empty() {
-        let pagination = extract_pagination(params)?;
+        let mut pagination = extract_pagination(params)?;
+        // Validate and sanitize parameters.
+        if pagination.start > pagination.end || pagination.start > store.questions.len() - 1 {
+            return Err(QueryError::InvalidRange.into());
+        }
+        pagination.end = min(pagination.end, store.questions.len());
+
         let res: Vec<Question> = store.questions.values().cloned().collect();
         let res = &res[pagination.start..pagination.end];
         Ok(warp::reply::json(&res))
