@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Formatter;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use warp::reject::Reject;
 use warp::{
@@ -21,13 +23,13 @@ struct Question {
 
 #[derive(Clone)]
 struct Store {
-    questions: HashMap<QuestionId, Question>,
+    questions: Arc<RwLock<HashMap<QuestionId, Question>>>,
 }
 
 impl Store {
     fn new() -> Self {
         Store {
-            questions: Self::init(),
+            questions: Arc::new(RwLock::new(Self::init())),
         }
     }
 
@@ -86,19 +88,19 @@ async fn get_questions(
     params: HashMap<String, String>,
     store: Store,
 ) -> Result<impl Reply, Rejection> {
+    let res: Vec<Question> = store.questions.read().await.values().cloned().collect();
     if !params.is_empty() {
         let mut pagination = extract_pagination(params)?;
+        let nq = store.questions.read().await.len();
         // Validate and sanitize parameters.
-        if pagination.start > pagination.end || pagination.start > store.questions.len() - 1 {
+        if pagination.start > pagination.end || pagination.start > nq - 1 {
             return Err(QueryError::InvalidRange.into());
         }
-        pagination.end = min(pagination.end, store.questions.len());
+        pagination.end = min(pagination.end, nq);
 
-        let res: Vec<Question> = store.questions.values().cloned().collect();
         let res = &res[pagination.start..pagination.end];
         Ok(warp::reply::json(&res))
     } else {
-        let res: Vec<Question> = store.questions.values().cloned().collect();
         Ok(warp::reply::json(&res))
     }
 }
