@@ -5,11 +5,11 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use warp::body::BodyDeserializeError;
 use warp::reject::Reject;
 use warp::{
     filters::cors::CorsForbidden, http::Method, http::StatusCode, Filter, Rejection, Reply,
 };
-use warp::body::BodyDeserializeError;
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 struct QuestionId(String);
@@ -129,6 +129,13 @@ async fn update_question(
     Ok(warp::reply::with_status("Question updated", StatusCode::OK))
 }
 
+async fn delete_question(id: String, store: Store) -> Result<impl Reply, Rejection> {
+    match store.questions.write().await.remove(&QuestionId(id)) {
+        Some(_) => Ok(warp::reply::with_status("Question deleted", StatusCode::OK)),
+        None => Err(warp::reject::custom(QueryError::QuestionNotFound)),
+    }
+}
+
 async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
     if let Some(error) = r.find::<QueryError>() {
         Ok(warp::reply::with_status(
@@ -184,9 +191,17 @@ async fn main() {
         .and(warp::body::json())
         .and_then(update_question);
 
+    let delete_question = warp::delete()
+        .and(warp::path("questions"))
+        .and(warp::path::param::<String>())
+        .and(warp::path::end())
+        .and(store_filter.clone())
+        .and_then(delete_question);
+
     let routes = get_questions
         .or(add_question)
         .or(update_question)
+        .or(delete_question)
         .with(cors)
         .recover(return_error);
 
