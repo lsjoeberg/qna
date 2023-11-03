@@ -44,6 +44,7 @@ enum QueryError {
     ParseError(std::num::ParseIntError),
     MissingParameters,
     InvalidRange,
+    QuestionNotFound,
 }
 
 impl std::fmt::Display for QueryError {
@@ -54,6 +55,7 @@ impl std::fmt::Display for QueryError {
             }
             QueryError::MissingParameters => write!(f, "Missing parameter"),
             QueryError::InvalidRange => write!(f, "Invalid range"),
+            QueryError::QuestionNotFound => write!(f, "Question not found"),
         }
     }
 }
@@ -114,6 +116,18 @@ async fn add_question(store: Store, question: Question) -> Result<impl Reply, Re
     Ok(warp::reply::with_status("Question added", StatusCode::OK))
 }
 
+async fn update_question(
+    id: String,
+    store: Store,
+    question: Question,
+) -> Result<impl Reply, Rejection> {
+    match store.questions.write().await.get_mut(&QuestionId(id)) {
+        Some(q) => *q = question,
+        None => return Err(warp::reject::custom(QueryError::QuestionNotFound)),
+    }
+    Ok(warp::reply::with_status("Question updated", StatusCode::OK))
+}
+
 async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
     if let Some(error) = r.find::<QueryError>() {
         Ok(warp::reply::with_status(
@@ -156,8 +170,17 @@ async fn main() {
         .and(warp::body::json())
         .and_then(add_question);
 
+    let update_question = warp::put()
+        .and(warp::path("questions"))
+        .and(warp::path::param::<String>())
+        .and(warp::path::end())
+        .and(store_filter.clone())
+        .and(warp::body::json())
+        .and_then(update_question);
+
     let routes = get_questions
         .or(add_question)
+        .or(update_question)
         .with(cors)
         .recover(return_error);
 
