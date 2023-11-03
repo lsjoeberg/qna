@@ -9,6 +9,7 @@ use warp::reject::Reject;
 use warp::{
     filters::cors::CorsForbidden, http::Method, http::StatusCode, Filter, Rejection, Reply,
 };
+use warp::body::BodyDeserializeError;
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 struct QuestionId(String);
@@ -133,6 +134,11 @@ async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
         Ok(warp::reply::with_status(
             error.to_string(),
             StatusCode::RANGE_NOT_SATISFIABLE,
+        ))
+    } else if let Some(error) = r.find::<BodyDeserializeError>() {
+        Ok(warp::reply::with_status(
+            error.to_string(),
+            StatusCode::UNPROCESSABLE_ENTITY,
         ))
     } else if let Some(error) = r.find::<CorsForbidden>() {
         Ok(warp::reply::with_status(
