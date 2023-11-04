@@ -11,7 +11,7 @@ mod types;
 async fn main() {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
     let log = warp::log::custom(|info| {
-        eprintln!(
+        log::info!(
             "{} {} {} {:?} from {} with {:?}",
             info.method(),
             info.path(),
