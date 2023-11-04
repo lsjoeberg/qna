@@ -1,6 +1,5 @@
+use handle_errors::QueryError;
 use std::collections::HashMap;
-
-use crate::error;
 
 #[derive(Debug)]
 pub struct Pagination {
@@ -8,22 +7,20 @@ pub struct Pagination {
     pub end: usize,
 }
 
-pub fn extract_pagination(
-    params: HashMap<String, String>,
-) -> Result<Pagination, error::QueryError> {
+pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, QueryError> {
     if params.contains_key("start") && params.contains_key("end") {
         return Ok(Pagination {
             start: params
                 .get("start")
                 .unwrap()
                 .parse::<usize>()
-                .map_err(error::QueryError::ParseError)?,
+                .map_err(QueryError::ParseError)?,
             end: params
                 .get("end")
                 .unwrap()
                 .parse::<usize>()
-                .map_err(error::QueryError::ParseError)?,
+                .map_err(QueryError::ParseError)?,
         });
     }
-    Err(error::QueryError::MissingParameters)
+    Err(QueryError::MissingParameters)
 }

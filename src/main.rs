@@ -1,6 +1,6 @@
+use handle_errors::return_error;
 use warp::{http::Method, Filter};
 
-mod error;
 mod routes;
 mod store;
 mod types;
@@ -56,7 +56,7 @@ async fn main() {
         .or(update_question)
         .or(delete_question)
         .with(cors)
-        .recover(error::return_error);
+        .recover(return_error);
 
     warp::serve(routes).run(([0, 0, 0, 0], 7878)).await;
 }

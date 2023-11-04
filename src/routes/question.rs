@@ -1,10 +1,10 @@
 use std::cmp::min;
 use std::collections::HashMap;
 
+use handle_errors::QueryError;
 use warp::http::StatusCode;
 use warp::{Rejection, Reply};
 
-use crate::error::QueryError;
 use crate::store::Store;
 use crate::types::pagination::extract_pagination;
 use crate::types::question::{Question, QuestionId};
