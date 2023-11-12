@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::types::question::QuestionId;
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AnswerId(pub String);
+pub struct AnswerId(pub i32);
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Answer {
