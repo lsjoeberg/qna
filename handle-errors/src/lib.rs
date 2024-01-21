@@ -1,19 +1,17 @@
 use std::fmt::Formatter;
 
+use tracing::{event, instrument, Level};
 use warp::{
     body::BodyDeserializeError, cors::CorsForbidden, http::StatusCode, reject::Reject, Rejection,
     Reply,
 };
-
-use sqlx::error::Error as SqlxError;
 
 #[derive(Debug)]
 pub enum QueryError {
     ParseError(std::num::ParseIntError),
     MissingParameters,
     InvalidRange,
-    QuestionNotFound,
-    DataBaseQueryError(SqlxError),
+    DataBaseQueryError,
 }
 
 impl std::fmt::Display for QueryError {
@@ -24,9 +22,8 @@ impl std::fmt::Display for QueryError {
             }
             QueryError::MissingParameters => write!(f, "Missing parameter"),
             QueryError::InvalidRange => write!(f, "Invalid range"),
-            QueryError::QuestionNotFound => write!(f, "Question not found"),
-            QueryError::DataBaseQueryError(ref err) => {
-                write!(f, "Query could not be executed: {}", err)
+            QueryError::DataBaseQueryError => {
+                write!(f, "Cannot update, invalid data.")
             }
         }
     }
@@ -34,23 +31,28 @@ impl std::fmt::Display for QueryError {
 
 impl Reject for QueryError {}
 
+#[instrument]
 pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
-    if let Some(error) = r.find::<QueryError>() {
+    if let Some(crate::QueryError::DataBaseQueryError) = r.find() {
+        event!(Level::ERROR, "Database query error");
         Ok(warp::reply::with_status(
-            error.to_string(),
-            StatusCode::RANGE_NOT_SATISFIABLE,
+            crate::QueryError::DataBaseQueryError.to_string(),
+            StatusCode::UNPROCESSABLE_ENTITY,
         ))
     } else if let Some(error) = r.find::<BodyDeserializeError>() {
+        event!(Level::ERROR, "Cannot deserialize request body: {}", error);
         Ok(warp::reply::with_status(
             error.to_string(),
             StatusCode::UNPROCESSABLE_ENTITY,
         ))
     } else if let Some(error) = r.find::<CorsForbidden>() {
+        event!(Level::ERROR, "CORS forbidded error {}", error);
         Ok(warp::reply::with_status(
             error.to_string(),
             StatusCode::FORBIDDEN,
         ))
     } else {
+        event!(Level::WARN, "Request route was not found");
         Ok(warp::reply::with_status(
             "Route not found".to_string(),
             StatusCode::NOT_FOUND,

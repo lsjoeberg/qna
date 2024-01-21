@@ -1,3 +1,4 @@
+use handle_errors::QueryError;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
 use crate::types::answer::{Answer, NewAnswer};
@@ -23,7 +24,7 @@ impl Store {
         &self,
         limit: Option<i64>,
         offset: i64,
-    ) -> Result<Vec<Question>, sqlx::Error> {
+    ) -> Result<Vec<Question>, QueryError> {
         let questions: Result<Vec<Question>, sqlx::Error> = sqlx::query_as!(
             Question,
             r#"SELECT id, title, content, tags FROM questions LIMIT $1 OFFSET $2"#,
@@ -36,12 +37,12 @@ impl Store {
             Ok(questions) => Ok(questions),
             Err(err) => {
                 tracing::event!(tracing::Level::ERROR, "{:?}", err);
-                Err(err)
+                Err(QueryError::DataBaseQueryError)
             }
         }
     }
 
-    pub async fn add_question(&self, new_question: NewQuestion) -> Result<Question, sqlx::Error> {
+    pub async fn add_question(&self, new_question: NewQuestion) -> Result<Question, QueryError> {
         let question: Result<Question, sqlx::Error> = sqlx::query_as!(
             Question,
             r#"INSERT INTO questions (title, content, tags)
@@ -53,14 +54,20 @@ impl Store {
         )
         .fetch_one(&self.connection)
         .await;
-        question
+        match question {
+            Ok(q) => Ok(q),
+            Err(err) => {
+                tracing::event!(tracing::Level::ERROR, "{:?}", err);
+                Err(QueryError::DataBaseQueryError)
+            }
+        }
     }
 
     pub async fn update_question(
         &self,
         question: Question,
         question_id: i32,
-    ) -> Result<Question, sqlx::Error> {
+    ) -> Result<Question, QueryError> {
         let question: Result<Question, sqlx::Error> = sqlx::query_as!(
             Question,
             r#"UPDATE questions
@@ -74,20 +81,29 @@ impl Store {
         )
         .fetch_one(&self.connection)
         .await;
-        question
-    }
-
-    pub async fn delete_question(&self, question_id: i32) -> Result<bool, sqlx::Error> {
-        match sqlx::query!(r#"DELETE FROM questions WHERE id = $1"#, question_id,)
-            .execute(&self.connection)
-            .await
-        {
-            Ok(_) => Ok(true),
-            Err(err) => Err(err),
+        match question {
+            Ok(q) => Ok(q),
+            Err(err) => {
+                tracing::event!(tracing::Level::ERROR, "{:?}", err);
+                Err(QueryError::DataBaseQueryError)
+            }
         }
     }
 
-    pub async fn add_answer(&self, new_answer: NewAnswer) -> Result<Answer, sqlx::Error> {
+    pub async fn delete_question(&self, question_id: i32) -> Result<bool, QueryError> {
+        let result = sqlx::query!(r#"DELETE FROM questions WHERE id = $1"#, question_id,)
+            .execute(&self.connection)
+            .await;
+        match result {
+            Ok(_) => Ok(true),
+            Err(err) => {
+                tracing::event!(tracing::Level::ERROR, "{:?}", err);
+                Err(QueryError::DataBaseQueryError)
+            }
+        }
+    }
+
+    pub async fn add_answer(&self, new_answer: NewAnswer) -> Result<Answer, QueryError> {
         let answer = sqlx::query_as!(
             Answer,
             r#"INSERT INTO answers (content, corresponding_question)
@@ -102,7 +118,7 @@ impl Store {
             Ok(answer) => Ok(answer),
             Err(err) => {
                 tracing::event!(tracing::Level::ERROR, "{:?}", err);
-                Err(err)
+                Err(QueryError::DataBaseQueryError)
             }
         }
     }

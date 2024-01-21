@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use handle_errors::QueryError;
 use tracing::{event, info, instrument, Level};
 use warp::http::StatusCode;
 use warp::{Rejection, Reply};
@@ -21,14 +20,13 @@ pub async fn get_questions(
     }
 
     info!(pagination = false);
-    let res: Vec<Question> = match store
+    match store
         .get_questions(pagination.limit, pagination.offset)
         .await
     {
-        Ok(res) => res,
-        Err(err) => return Err(warp::reject::custom(QueryError::DataBaseQueryError(err))),
-    };
-    Ok(warp::reply::json(&res))
+        Ok(res) => Ok(warp::reply::json(&res)),
+        Err(err) => return Err(warp::reject::custom(err)),
+    }
 }
 
 pub async fn add_question(
@@ -36,7 +34,7 @@ pub async fn add_question(
     new_question: NewQuestion,
 ) -> Result<impl Reply, Rejection> {
     if let Err(err) = store.add_question(new_question).await {
-        return Err(warp::reject::custom(QueryError::DataBaseQueryError(err)));
+        return Err(warp::reject::custom(err));
     }
     Ok(warp::reply::with_status("Question added", StatusCode::OK))
 }
@@ -48,14 +46,14 @@ pub async fn update_question(
 ) -> Result<impl Reply, Rejection> {
     let res = match store.update_question(question, id).await {
         Ok(res) => res,
-        Err(err) => return Err(warp::reject::custom(QueryError::DataBaseQueryError(err))),
+        Err(err) => return Err(warp::reject::custom(err)),
     };
     Ok(warp::reply::json(&res))
 }
 
 pub async fn delete_question(id: i32, store: Store) -> Result<impl Reply, Rejection> {
     if let Err(err) = store.delete_question(id).await {
-        return Err(warp::reject::custom(QueryError::DataBaseQueryError(err)));
+        return Err(warp::reject::custom(err));
     }
     Ok(warp::reply::with_status(
         format!("Question: {} deleted", id),
