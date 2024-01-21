@@ -10,7 +10,8 @@ mod types;
 
 #[tokio::main]
 async fn main() {
-    let log_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "qna=info,warp=error".to_owned());
+    let log_filter = std::env::var("RUST_LOG")
+        .unwrap_or_else(|_| "handle_errors=warn,qna=info,warp=error".to_owned());
 
     let Ok(database_url) = std::env::var("DATABASE_URL") else {
         eprintln!("env var DATABASE_URL not set");
@@ -35,10 +36,7 @@ async fn main() {
         .and(warp::path::end())
         .and(warp::query())
         .and(store_filter.clone())
-        .and_then(routes::question::get_questions)
-        .with(warp::trace(|info| {
-            tracing::info_span!("get_questions request", method = %info.method(), path = %info.path(), id = %uuid::Uuid::new_v4())
-        }));
+        .and_then(routes::question::get_questions);
 
     let add_question = warp::post()
         .and(warp::path("questions"))
