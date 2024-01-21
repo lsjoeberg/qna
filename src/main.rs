@@ -12,7 +12,11 @@ mod types;
 async fn main() {
     let log_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "qna=info,warp=error".to_owned());
 
-    let store = store::Store::new();
+    let Ok(database_url) = std::env::var("DATABASE_URL") else {
+        eprintln!("env var DATABASE_URL not set");
+        std::process::exit(1);
+    };
+    let store = store::Store::new(&database_url).await;
     let store_filter = warp::any().map(move || store.clone());
 
     let cors = warp::cors()

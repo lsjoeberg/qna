@@ -1,12 +1,11 @@
 use std::fmt::Formatter;
 
 use warp::{
-    body::BodyDeserializeError,
-    cors::CorsForbidden,
-    http::StatusCode,
-    reject::Reject, Rejection,
+    body::BodyDeserializeError, cors::CorsForbidden, http::StatusCode, reject::Reject, Rejection,
     Reply,
 };
+
+use sqlx::error::Error as SqlxError;
 
 #[derive(Debug)]
 pub enum QueryError {
@@ -14,6 +13,7 @@ pub enum QueryError {
     MissingParameters,
     InvalidRange,
     QuestionNotFound,
+    DataBaseQueryError(SqlxError),
 }
 
 impl std::fmt::Display for QueryError {
@@ -25,6 +25,9 @@ impl std::fmt::Display for QueryError {
             QueryError::MissingParameters => write!(f, "Missing parameter"),
             QueryError::InvalidRange => write!(f, "Invalid range"),
             QueryError::QuestionNotFound => write!(f, "Question not found"),
+            QueryError::DataBaseQueryError(ref err) => {
+                write!(f, "Query could not be executed: {}", err)
+            }
         }
     }
 }
