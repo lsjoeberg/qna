@@ -15,6 +15,7 @@ uuid = { version = "1.5.0", features = ["v4"] }
 tracing = { version = "0.1.40", features = ["log"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 sqlx = { version = "0.7.2", features = ["runtime-tokio", "tls-rustls", "postgres", "time"] }
+reqwest = { version = "0.11.23", features = ["json"] }
 
 [profile.release]
 strip = true

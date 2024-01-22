@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use handle_errors::QueryError;
+use handle_errors::Error;
 
 /// Pagination struct that is getting extracted from query parameters
 #[derive(Debug, Default)]
@@ -25,7 +25,7 @@ pub struct Pagination {
 /// assert_eq!(p.start, 1);
 /// assert_eq!(p.end, 10);
 /// ```
-pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, QueryError> {
+pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, Error> {
     if params.contains_key("limit") && params.contains_key("offset") {
         // Takes the "limit" parameter in the query and attempts to convert to a number.
         return Ok(Pagination {
@@ -34,14 +34,14 @@ pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination,
                     .get("limit")
                     .unwrap()
                     .parse::<i64>()
-                    .map_err(QueryError::ParseError)?,
+                    .map_err(Error::ParseError)?,
             ),
             offset: params
                 .get("offset")
                 .unwrap()
                 .parse::<i64>()
-                .map_err(QueryError::ParseError)?,
+                .map_err(Error::ParseError)?,
         });
     }
-    Err(QueryError::MissingParameters)
+    Err(Error::MissingParameters)
 }

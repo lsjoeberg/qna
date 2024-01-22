@@ -1,5 +1,6 @@
 use std::fmt::Formatter;
 
+use reqwest::Error as ReqwestError;
 use tracing::{event, instrument, Level};
 use warp::{
     body::BodyDeserializeError, cors::CorsForbidden, http::StatusCode, reject::Reject, Rejection,
@@ -7,37 +8,80 @@ use warp::{
 };
 
 #[derive(Debug)]
-pub enum QueryError {
+pub enum Error {
     ParseError(std::num::ParseIntError),
     MissingParameters,
     InvalidRange,
     DataBaseQueryError,
+    ExternalAPIError(ReqwestError),
+    ClientError(APILayerError),
+    ServerError(APILayerError),
 }
 
-impl std::fmt::Display for QueryError {
+#[derive(Debug, Clone)]
+pub struct APILayerError {
+    pub status: u16,
+    pub message: String,
+}
+
+impl std::fmt::Display for APILayerError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Status: {}, Message: {}", self.status, self.message)
+    }
+}
+
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match *self {
-            QueryError::ParseError(ref err) => {
+            Error::ParseError(ref err) => {
                 write!(f, "Cannot parse parameter: {}", err)
             }
-            QueryError::MissingParameters => write!(f, "Missing parameter"),
-            QueryError::InvalidRange => write!(f, "Invalid range"),
-            QueryError::DataBaseQueryError => {
+            Error::MissingParameters => write!(f, "Missing parameter"),
+            Error::InvalidRange => write!(f, "Invalid range"),
+            Error::DataBaseQueryError => {
                 write!(f, "Cannot update, invalid data.")
+            }
+            Error::ExternalAPIError(ref err) => {
+                write!(f, "Cannot execute: {}", err)
+            }
+            Error::ClientError(ref err) => {
+                write!(f, "External Client error: {}", err)
+            }
+            Error::ServerError(ref err) => {
+                write!(f, "External Server error: {}", err)
             }
         }
     }
 }
 
-impl Reject for QueryError {}
+impl Reject for Error {}
+impl Reject for APILayerError {}
 
 #[instrument]
 pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
-    if let Some(crate::QueryError::DataBaseQueryError) = r.find() {
+    if let Some(crate::Error::DataBaseQueryError) = r.find() {
         event!(Level::ERROR, "Database query error");
         Ok(warp::reply::with_status(
-            crate::QueryError::DataBaseQueryError.to_string(),
+            crate::Error::DataBaseQueryError.to_string(),
             StatusCode::UNPROCESSABLE_ENTITY,
+        ))
+    } else if let Some(crate::Error::ExternalAPIError(err)) = r.find() {
+        event!(Level::ERROR, "{err}");
+        Ok(warp::reply::with_status(
+            "Internal Server Error".to_string(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ))
+    } else if let Some(crate::Error::ClientError(err)) = r.find() {
+        event!(Level::ERROR, "{err}");
+        Ok(warp::reply::with_status(
+            "Internal Server Error".to_string(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ))
+    } else if let Some(crate::Error::ServerError(err)) = r.find() {
+        event!(Level::ERROR, "{err}");
+        Ok(warp::reply::with_status(
+            "Internal Server Error".to_string(),
+            StatusCode::INTERNAL_SERVER_ERROR,
         ))
     } else if let Some(error) = r.find::<BodyDeserializeError>() {
         event!(Level::ERROR, "Cannot deserialize request body: {}", error);
