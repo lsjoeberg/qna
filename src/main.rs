@@ -4,6 +4,7 @@ use handle_errors::return_error;
 use tracing_subscriber::fmt::format::FmtSpan;
 use warp::{http::Method, Filter};
 
+mod account;
 mod profanity;
 mod routes;
 mod store;
@@ -68,11 +69,19 @@ async fn main() {
         .and(warp::body::form())
         .and_then(routes::answer::add_answer);
 
+    let registration = warp::post()
+        .and(warp::path("registration"))
+        .and(warp::path::end())
+        .and(store_filter.clone())
+        .and(warp::body::json())
+        .and_then(routes::authentication::register);
+
     let routes = get_questions
         .or(add_question)
         .or(add_answer)
         .or(update_question)
         .or(delete_question)
+        .or(registration)
         .with(cors)
         .with(warp::trace::request())
         .recover(return_error);

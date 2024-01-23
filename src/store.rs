@@ -1,6 +1,8 @@
 use handle_errors::Error;
 use sqlx::postgres::{PgPool, PgPoolOptions};
+use tracing::event;
 
+use crate::account::Account;
 use crate::types::answer::{Answer, NewAnswer};
 use crate::types::question::{NewQuestion, Question};
 
@@ -91,7 +93,7 @@ impl Store {
     }
 
     pub async fn delete_question(&self, question_id: i32) -> Result<bool, Error> {
-        let result = sqlx::query!(r#"DELETE FROM questions WHERE id = $1"#, question_id,)
+        let result = sqlx::query!(r#"DELETE FROM questions WHERE id = $1"#, question_id)
             .execute(&self.connection)
             .await;
         match result {
@@ -118,6 +120,34 @@ impl Store {
             Ok(answer) => Ok(answer),
             Err(err) => {
                 tracing::event!(tracing::Level::ERROR, "{:?}", err);
+                Err(Error::DataBaseQueryError)
+            }
+        }
+    }
+
+    pub async fn add_account(&self, account: Account) -> Result<bool, Error> {
+        let result = sqlx::query!(
+            r#"INSERT INTO accounts (email, password) VALUES ($1, $2)"#,
+            account.email,
+            account.password,
+        )
+        .execute(&self.connection)
+        .await;
+        match result {
+            Ok(_) => Ok(true),
+            Err(err) => {
+                event!(
+                    tracing::Level::ERROR,
+                    code = err
+                        .as_database_error()
+                        .unwrap()
+                        .code()
+                        .unwrap()
+                        .parse::<i32>()
+                        .unwrap(),
+                    db_message = err.as_database_error().unwrap().message(),
+                    constraint = err.as_database_error().unwrap().constraint().unwrap(),
+                );
                 Err(Error::DataBaseQueryError)
             }
         }
