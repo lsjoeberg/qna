@@ -14,6 +14,8 @@ pub enum Error {
     ParseError(std::num::ParseIntError),
     MissingParameters,
     WrongPassword,
+    CannotDecryptToken,
+    Unauthorized,
     ArgonLibraryError(ArgonError),
     InvalidRange,
     DataBaseQueryError(sqlx::Error),
@@ -43,6 +45,8 @@ impl std::fmt::Display for Error {
             }
             Error::MissingParameters => write!(f, "Missing parameter"),
             Error::WrongPassword => write!(f, "Wrong password"),
+            Error::CannotDecryptToken => write!(f, "Cannot decrypt token"),
+            Error::Unauthorized => write!(f, "Unauthorized to change the resource"),
             Error::ArgonLibraryError(_) => write!(f, "Cannot verify password"),
             Error::InvalidRange => write!(f, "Invalid range"),
             Error::DataBaseQueryError(_) => {
@@ -97,6 +101,12 @@ pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
         Ok(warp::reply::with_status(
             "Internal Server Error".to_string(),
             StatusCode::INTERNAL_SERVER_ERROR,
+        ))
+    } else if let Some(crate::Error::Unauthorized) = r.find() {
+        event!(Level::ERROR, "Not matching account id");
+        Ok(warp::reply::with_status(
+            "Unauthorized to change the resource".to_string(),
+            StatusCode::UNAUTHORIZED,
         ))
     } else if let Some(crate::Error::WrongPassword) = r.find() {
         event!(Level::ERROR, "Entered wrong password");
