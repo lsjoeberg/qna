@@ -161,10 +161,9 @@ impl Store {
                 id: Some(AccountId(row.get("id"))),
                 email: row.get("email"),
                 password: row.get("password"),
-            }
-                )
-                .fetch_one(&self.connection)
-                .await;
+            })
+            .fetch_one(&self.connection)
+            .await;
         match questions {
             Ok(account) => Ok(account),
             Err(err) => {

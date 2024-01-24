@@ -21,6 +21,7 @@ reqwest-middleware = "0.2.4"
 rand = "0.8.5"
 rust-argon2 = "2.1.0"
 paseto = "2.0.2"
+chrono = "0.4.32"
 
 [profile.release]
 strip = true
