@@ -1,8 +1,9 @@
 use handle_errors::Error;
-use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
+use sqlx::Row;
 use tracing::event;
 
-use crate::account::Account;
+use crate::account::{Account, AccountId};
 use crate::types::answer::{Answer, NewAnswer};
 use crate::types::question::{NewQuestion, Question};
 
@@ -148,6 +149,26 @@ impl Store {
                     db_message = err.as_database_error().unwrap().message(),
                     constraint = err.as_database_error().unwrap().constraint().unwrap(),
                 );
+                Err(Error::DataBaseQueryError(err))
+            }
+        }
+    }
+
+    pub async fn get_account(&self, email: String) -> Result<Account, Error> {
+        let questions = sqlx::query(r#"SELECT * FROM accounts WHERE email = $1"#)
+            .bind(email)
+            .map(|row: PgRow| Account {
+                id: Some(AccountId(row.get("id"))),
+                email: row.get("email"),
+                password: row.get("password"),
+            }
+                )
+                .fetch_one(&self.connection)
+                .await;
+        match questions {
+            Ok(account) => Ok(account),
+            Err(err) => {
+                tracing::event!(tracing::Level::ERROR, "{:?}", err);
                 Err(Error::DataBaseQueryError(err))
             }
         }
