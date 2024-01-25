@@ -57,7 +57,7 @@ fn verify_password(hash: &str, password: &[u8]) -> Result<bool, argon2::Error> {
 fn issue_token(account_id: AccountId) -> String {
     let current_date_time = Utc::now();
     let dt = current_date_time + chrono::Duration::days(1);
-    let key = std::env::var("PASETO_KEY").expect("Env var PASETO_KEY must be set"); // FIXME
+    let key = std::env::var("PASETO_KEY").expect("Env var PASETO_KEY must be set");
 
     paseto::tokens::PasetoBuilder::new()
         .set_encryption_key(key.as_bytes())
@@ -69,7 +69,7 @@ fn issue_token(account_id: AccountId) -> String {
 }
 
 pub fn verify_token(token: String) -> Result<Session, handle_errors::Error> {
-    let key = std::env::var("PASETO_KEY").expect("Env var PASETO_KEY must be set"); // FIXME
+    let key = std::env::var("PASETO_KEY").expect("Env var PASETO_KEY must be set");
     let token = paseto::tokens::validate_local_token(
         &token,
         None,

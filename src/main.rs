@@ -4,22 +4,31 @@ use handle_errors::return_error;
 use tracing_subscriber::fmt::format::FmtSpan;
 use warp::{http::Method, Filter};
 
+use crate::config::Config;
+
 mod account;
+mod config;
 mod profanity;
 mod routes;
 mod store;
 mod types;
 
 #[tokio::main]
-async fn main() {
-    let log_filter = std::env::var("RUST_LOG")
-        .unwrap_or_else(|_| "handle_errors=warn,qna=info,warp=error".to_owned());
+async fn main() -> Result<(), handle_errors::Error> {
+    let config = Config::new().expect("Failed to read configuration");
 
-    let Ok(database_url) = std::env::var("DATABASE_URL") else {
-        eprintln!("env var DATABASE_URL not set");
-        std::process::exit(1);
-    };
-    let store = store::Store::new(&database_url).await;
+    let log_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| {
+        format!(
+            "handle_errors={},qna={},warp={}",
+            config.log_level, config.log_level, config.log_level
+        )
+    });
+
+    let store = store::Store::new(&format!(
+        "postgres://{}:{}@{}:{}/{}",
+        config.db_user, config.db_password, config.db_host, config.db_port, config.db_name
+    ))
+    .await;
     let store_filter = warp::any().map(move || store.clone());
 
     let cors = warp::cors()
@@ -98,5 +107,7 @@ async fn main() {
         .with(warp::trace::request())
         .recover(return_error);
 
-    warp::serve(routes).run(([0, 0, 0, 0], 7878)).await;
+    warp::serve(routes).run(([0, 0, 0, 0], config.port)).await;
+
+    Ok(())
 }
