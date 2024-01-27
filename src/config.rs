@@ -12,10 +12,10 @@ pub struct Config {
     #[clap(short, long, default_value_t = 7878u16)]
     pub port: u16,
     /// Database user
-    #[clap(long, default_value = "username")]
+    #[clap(long, default_value = "postgres")]
     pub db_user: String,
     /// Database password
-    #[clap(long)]
+    #[clap(long, default_value = "")]
     pub db_password: String,
     /// URL for the postgres database
     #[clap(long, default_value = "localhost")]
