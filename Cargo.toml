@@ -15,15 +15,15 @@ uuid = { version = "1.5.0", features = ["v4"] }
 tracing = { version = "0.1.40", features = ["log"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 sqlx = { version = "0.7.2", features = ["runtime-tokio", "tls-rustls", "postgres", "time"] }
-reqwest = { version = "0.11.23", features = ["json"] }
+reqwest = { version = "0.11.23", default-features = false, features = ["json", "rustls"] }
 reqwest-retry = "0.3.0"
 reqwest-middleware = "0.2.4"
 rand = "0.8.5"
 rust-argon2 = "2.1.0"
-paseto = "2.0.2"
-chrono = "0.4.32"
+chrono = { version = "0.4.32", features = ["serde"] }
 clap = { version = "4.4.18", features = ["derive"] }
 dotenv = "0.15.0"
+pasetors = "0.6.8"
 
 [profile.release]
 strip = true
