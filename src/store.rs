@@ -4,8 +4,8 @@ use sqlx::Row;
 use tracing::event;
 
 use crate::account::{Account, AccountId};
-use crate::types::answer::{Answer, NewAnswer};
-use crate::types::question::{NewQuestion, Question};
+use crate::types::answer::{Answer, AnswerId, NewAnswer};
+use crate::types::question::{NewQuestion, Question, QuestionId};
 
 #[derive(Debug, Clone)]
 pub struct Store {
@@ -28,14 +28,18 @@ impl Store {
         limit: Option<i64>,
         offset: i64,
     ) -> Result<Vec<Question>, Error> {
-        let questions: Result<Vec<Question>, sqlx::Error> = sqlx::query_as!(
-            Question,
-            r#"SELECT id, title, content, tags FROM questions LIMIT $1 OFFSET $2"#,
-            limit,
-            offset,
-        )
-        .fetch_all(&self.connection)
-        .await;
+        let questions =
+            sqlx::query(r#"SELECT id, title, content, tags FROM questions LIMIT $1 OFFSET $2"#)
+                .bind(limit)
+                .bind(offset)
+                .map(|row: PgRow| Question {
+                    id: QuestionId(row.get("id")),
+                    title: row.get("title"),
+                    content: row.get("content"),
+                    tags: row.get("tags"),
+                })
+                .fetch_all(&self.connection)
+                .await;
         match questions {
             Ok(questions) => Ok(questions),
             Err(err) => {
@@ -50,16 +54,21 @@ impl Store {
         new_question: NewQuestion,
         account_id: AccountId,
     ) -> Result<Question, Error> {
-        let question: Result<Question, sqlx::Error> = sqlx::query_as!(
-            Question,
+        let question = sqlx::query(
             r#"INSERT INTO questions (title, content, tags, account_id)
             VALUES  ($1, $2, $3, $4)
             RETURNING id, title, content, tags"#,
-            new_question.title,
-            new_question.content,
-            new_question.tags.as_deref(),
-            account_id.0,
         )
+        .bind(new_question.title)
+        .bind(new_question.content)
+        .bind(new_question.tags)
+        .bind(account_id.0)
+        .map(|row: PgRow| Question {
+            id: QuestionId(row.get("id")),
+            title: row.get("title"),
+            content: row.get("content"),
+            tags: row.get("tags"),
+        })
         .fetch_one(&self.connection)
         .await;
         match question {
@@ -77,18 +86,23 @@ impl Store {
         question_id: i32,
         account_id: AccountId,
     ) -> Result<Question, Error> {
-        let question: Result<Question, sqlx::Error> = sqlx::query_as!(
-            Question,
+        let question = sqlx::query(
             r#"UPDATE questions
             SET title = $1, content = $2, tags = $3
             WHERE id = $4 AND account_id = $5
             RETURNING id, title, content, tags"#,
-            question.title,
-            question.content,
-            question.tags.as_deref(),
-            question_id,
-            account_id.0,
         )
+        .bind(question.title)
+        .bind(question.content)
+        .bind(question.tags)
+        .bind(question_id)
+        .bind(account_id.0)
+        .map(|row: PgRow| Question {
+            id: QuestionId(row.get("id")),
+            title: row.get("title"),
+            content: row.get("content"),
+            tags: row.get("tags"),
+        })
         .fetch_one(&self.connection)
         .await;
         match question {
@@ -105,14 +119,11 @@ impl Store {
         question_id: i32,
         account_id: AccountId,
     ) -> Result<bool, Error> {
-        let result = sqlx::query!(
-            r#"DELETE FROM questions
-            WHERE id = $1 AND account_id = $2"#,
-            question_id,
-            account_id.0,
-        )
-        .execute(&self.connection)
-        .await;
+        let result = sqlx::query(r#"DELETE FROM questions WHERE id = $1 AND account_id = $2"#)
+            .bind(question_id)
+            .bind(account_id.0)
+            .execute(&self.connection)
+            .await;
         match result {
             Ok(_) => Ok(true),
             Err(err) => {
@@ -127,15 +138,19 @@ impl Store {
         new_answer: NewAnswer,
         account_id: AccountId,
     ) -> Result<Answer, Error> {
-        let answer = sqlx::query_as!(
-            Answer,
+        let answer = sqlx::query(
             r#"INSERT INTO answers (content, corresponding_question, account_id)
             VALUES ($1, $2, $3)
             RETURNING id, content, corresponding_question AS question_id"#,
-            new_answer.content,
-            new_answer.question_id.0,
-            account_id.0,
         )
+        .bind(new_answer.content)
+        .bind(new_answer.question_id.0)
+        .bind(account_id.0)
+        .map(|row: PgRow| Answer {
+            id: AnswerId(row.get("id")),
+            content: row.get("content"),
+            question_id: QuestionId(row.get("question_id")),
+        })
         .fetch_one(&self.connection)
         .await;
         match answer {
@@ -148,13 +163,11 @@ impl Store {
     }
 
     pub async fn add_account(&self, account: Account) -> Result<bool, Error> {
-        let result = sqlx::query!(
-            r#"INSERT INTO accounts (email, password) VALUES ($1, $2)"#,
-            account.email,
-            account.password,
-        )
-        .execute(&self.connection)
-        .await;
+        let result = sqlx::query(r#"INSERT INTO accounts (email, password) VALUES ($1, $2)"#)
+            .bind(account.email)
+            .bind(account.password)
+            .execute(&self.connection)
+            .await;
         match result {
             Ok(_) => Ok(true),
             Err(err) => {
@@ -199,12 +212,11 @@ impl Store {
         question_id: i32,
         account_id: &AccountId,
     ) -> Result<bool, Error> {
-        let question = sqlx::query_as!(
-            Question,
+        let question = sqlx::query(
             r#"SELECT id, title, content, tags FROM questions WHERE id = $1 AND account_id = $2"#,
-            question_id,
-            account_id.0,
         )
+        .bind(question_id)
+        .bind(account_id.0)
         .fetch_optional(&self.connection)
         .await;
         match question {
