@@ -1,3 +1,5 @@
+use std::env;
+
 use handle_errors::Error;
 use reqwest_middleware::ClientBuilder;
 use reqwest_retry::policies::ExponentialBackoff;
@@ -32,10 +34,10 @@ pub async fn check_profanity(content: String) -> Result<String, Error> {
     let client = ClientBuilder::new(reqwest::Client::new())
         .with(RetryTransientMiddleware::new_with_policy(retry_policy))
         .build();
-    // FIXME: App configuration.
-    let api_key = std::env::var("BADWORDS_API_KEY").expect("Env var BADWORDS_API_KEY must be set");
+    let api_key = env::var("BADWORDS_API_KEY").expect("Env var BADWORDS_API_KEY must be set");
+    let api_layer_url = env::var("BADWORDS_URL").expect("Env var BADWORDS_URL must be set");
     let res = client
-        .post("https://api.apilayer.com/bad_words?censor_character=*")
+        .post(format!("{}/bad_words?censor_character=*", api_layer_url))
         .header("apikey", api_key)
         .body(content)
         .send()
@@ -62,5 +64,44 @@ async fn transform_error(res: reqwest::Response) -> handle_errors::APILayerError
     handle_errors::APILayerError {
         status: res.status().as_u16(),
         message: res.json::<APIResponse>().await.unwrap().message,
+    }
+}
+#[cfg(test)]
+mod profanity_tests {
+    use mock_server::{MockServer, OneshotHandler};
+
+    use super::{check_profanity, env};
+
+    #[tokio::test]
+    async fn run() {
+        let handler = run_mock();
+        censor_profane_words().await;
+        no_profane_words().await;
+        let _ = handler.sender.send(1);
+    }
+
+    fn run_mock() -> OneshotHandler {
+        env::set_var("BADWORDS_URL", "http://127.0.0.1:3030");
+        env::set_var("BADWORDS_API_KEY", "YES");
+
+        let socket = "127.0.0.1:3030"
+            .to_string()
+            .parse()
+            .expect("Not a valid address");
+        let mock = MockServer::new(socket);
+
+        mock.oneshot()
+    }
+
+    async fn censor_profane_words() {
+        let content = "This is a shitty sentence".to_string();
+        let censored_content = check_profanity(content).await;
+        assert_eq!(censored_content.unwrap(), "this is a ****** sentence");
+    }
+
+    async fn no_profane_words() {
+        let content = "this is a sentence".to_string();
+        let censored_content = check_profanity(content).await;
+        assert_eq!(censored_content.unwrap(), "");
     }
 }
