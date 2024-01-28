@@ -18,12 +18,14 @@ pub struct Pagination {
 /// `/questions?start=1&end=10`
 /// # Example usage
 /// ```rust
+/// use std::collections::HashMap;
+/// use qna::types;
 /// let mut query = HashMap::new();
-/// query.insert("start".to_string(), "1".to_string());
-/// query.insert("end".to_string(), "10".to_string());
+/// query.insert("limit".into(), "1".into());
+/// query.insert("offset".into(), "10".into());
 /// let p = types::pagination::extract_pagination(query).unwrap();
-/// assert_eq!(p.start, 1);
-/// assert_eq!(p.end, 10);
+/// assert_eq!(p.limit, Some(1));
+/// assert_eq!(p.offset, 10);
 /// ```
 pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, Error> {
     if params.contains_key("limit") && params.contains_key("offset") {

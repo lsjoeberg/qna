@@ -2,47 +2,25 @@
 
 use handle_errors::return_error;
 use tracing_subscriber::fmt::format::FmtSpan;
-use warp::{http::Method, Filter};
+use warp::{http::Method, Filter, Reply};
 
 use crate::config::Config;
+use crate::store::Store;
 
 mod account;
-mod config;
+pub mod config;
 mod profanity;
 mod routes;
 mod store;
-mod types;
+pub mod types;
 
-#[tokio::main]
-async fn main() -> Result<(), handle_errors::Error> {
-    // Load vars from .env and then parse configuration.
-    dotenv::dotenv().ok();
-    let config = Config::new().expect("Failed to read configuration");
-
-    let log_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| {
-        format!(
-            "handle_errors={},qna={},warp={}",
-            config.log_level, config.log_level, config.log_level
-        )
-    });
-
-    let store = store::Store::new(&format!(
-        "postgres://{}:{}@{}:{}/{}",
-        config.db_user, config.db_password, config.db_host, config.db_port, config.db_name
-    ))
-    .await;
+async fn build_routes(store: Store) -> impl Filter<Extract = impl Reply> + Clone {
     let store_filter = warp::any().map(move || store.clone());
 
     let cors = warp::cors()
         .allow_any_origin()
         .allow_header("content-type")
         .allow_methods(&[Method::PUT, Method::DELETE, Method::GET, Method::POST]);
-
-    tracing_subscriber::fmt()
-        .with_env_filter(log_filter)
-        // Record and event when the span closes.
-        .with_span_events(FmtSpan::CLOSE)
-        .init();
 
     let get_questions = warp::get()
         .and(warp::path("questions"))
@@ -98,7 +76,7 @@ async fn main() -> Result<(), handle_errors::Error> {
         .and(warp::body::json())
         .and_then(routes::authentication::login);
 
-    let routes = get_questions
+    get_questions
         .or(add_question)
         .or(add_answer)
         .or(update_question)
@@ -107,11 +85,38 @@ async fn main() -> Result<(), handle_errors::Error> {
         .or(login)
         .with(cors)
         .with(warp::trace::request())
-        .recover(return_error);
+        .recover(return_error)
+}
 
-    tracing::info!("Q&A service build ID {}", env!("RUST_WEB_DEV_VERSION"));
+pub async fn setup_store(config: &Config) -> Result<Store, handle_errors::Error> {
+    let store = Store::new(&format!(
+        "postgres://{}:{}@{}:{}/{}",
+        config.db_user, config.db_password, config.db_host, config.db_port, config.db_name
+    ))
+    .await;
 
+    sqlx::migrate!()
+        .run(&store.clone().connection)
+        .await
+        .map_err(handle_errors::Error::MigrationError)?;
+
+    let log_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| {
+        format!(
+            "handle_errors={},qna={},warp={}",
+            config.log_level, config.log_level, config.log_level
+        )
+    });
+
+    tracing_subscriber::fmt()
+        .with_env_filter(log_filter)
+        // Record and event when the span closes.
+        .with_span_events(FmtSpan::CLOSE)
+        .init();
+
+    Ok(store)
+}
+
+pub async fn run(config: Config, store: Store) {
+    let routes = build_routes(store).await;
     warp::serve(routes).run(([0, 0, 0, 0], config.port)).await;
-
-    Ok(())
 }

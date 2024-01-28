@@ -19,6 +19,7 @@ pub enum Error {
     ArgonLibraryError(ArgonError),
     InvalidRange,
     DataBaseQueryError(sqlx::Error),
+    MigrationError(sqlx::migrate::MigrateError),
     ReqwestAPIError(ReqwestError),
     MiddlewareReqwestAPIError(MiddlewareReqwestError),
     ClientError(APILayerError),
@@ -40,30 +41,19 @@ impl std::fmt::Display for APILayerError {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match *self {
-            Error::ParseError(ref err) => {
-                write!(f, "Cannot parse parameter: {}", err)
-            }
+            Error::ParseError(ref err) => write!(f, "Cannot parse parameter: {}", err),
             Error::MissingParameters => write!(f, "Missing parameter"),
             Error::WrongPassword => write!(f, "Wrong password"),
             Error::CannotDecryptToken => write!(f, "Cannot decrypt token"),
             Error::Unauthorized => write!(f, "Unauthorized to change the resource"),
             Error::ArgonLibraryError(_) => write!(f, "Cannot verify password"),
             Error::InvalidRange => write!(f, "Invalid range"),
-            Error::DataBaseQueryError(_) => {
-                write!(f, "Cannot update, invalid data.")
-            }
-            Error::ReqwestAPIError(ref err) => {
-                write!(f, "External API error: {}", err)
-            }
-            Error::MiddlewareReqwestAPIError(ref err) => {
-                write!(f, "External API error: {}", err)
-            }
-            Error::ClientError(ref err) => {
-                write!(f, "External Client error: {}", err)
-            }
-            Error::ServerError(ref err) => {
-                write!(f, "External Server error: {}", err)
-            }
+            Error::DataBaseQueryError(_) => write!(f, "Cannot update, invalid data."),
+            Error::MigrationError(_) => write!(f, "Cannot migrate data"),
+            Error::ReqwestAPIError(ref err) => write!(f, "External API error: {}", err),
+            Error::MiddlewareReqwestAPIError(ref err) => write!(f, "External API error: {}", err),
+            Error::ClientError(ref err) => write!(f, "External Client error: {}", err),
+            Error::ServerError(ref err) => write!(f, "External Server error: {}", err),
         }
     }
 }
