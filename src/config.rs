@@ -2,7 +2,7 @@ use clap::Parser;
 use std::env;
 
 /// Q&A web service API
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, PartialEq)]
 #[clap(author, version, about, long_about = None)]
 pub struct Config {
     /// Log level (info, warn, or error)
@@ -30,7 +30,6 @@ pub struct Config {
 
 impl Config {
     pub fn new() -> Result<Config, handle_errors::Error> {
-        dotenv::dotenv().ok();
         let config = Config::parse();
 
         // Preflight check that env vars required during runtime are present.
@@ -65,5 +64,44 @@ impl Config {
             db_port,
             db_name,
         })
+    }
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::*;
+
+    fn set_env() {
+        env::set_var("BADWORDS_API_KEY", "API_KEY");
+        env::set_var("PASETO_KEY", "RANDOM WORDS WINTER MACINTOSH PC");
+        env::set_var("POSTGRES_USER", "user");
+        env::set_var("POSTGRES_PASSWORD", "pass");
+        env::set_var("POSTGRES_HOST", "localhost");
+        env::set_var("POSTGRES_PORT", "5432");
+        env::set_var("POSTGRES_DB", "rwd");
+    }
+
+    #[test]
+    fn unset_and_set_api_key() {
+        // ENV VARIABLES ARE NOT SET
+        let result = std::panic::catch_unwind(|| Config::new());
+        assert!(result.is_err());
+
+        // NOW WE SET THEM
+        set_env();
+
+        let expected = Config {
+            log_level: "warn".to_string(),
+            port: 7878,
+            db_user: "user".to_string(),
+            db_password: "pass".to_string(),
+            db_host: "localhost".to_string(),
+            db_port: 5432,
+            db_name: "rwd".to_string(),
+        };
+
+        let config = Config::new().unwrap();
+
+        assert_eq!(config, expected);
     }
 }

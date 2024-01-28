@@ -15,6 +15,8 @@ mod types;
 
 #[tokio::main]
 async fn main() -> Result<(), handle_errors::Error> {
+    // Load vars from .env and then parse configuration.
+    dotenv::dotenv().ok();
     let config = Config::new().expect("Failed to read configuration");
 
     let log_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| {
