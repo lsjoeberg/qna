@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use bytes::Bytes;
 use serde_json::json;
 use tokio::sync::{oneshot, oneshot::Sender};
-use warp::{Filter, http, Reply};
+use warp::{http, Filter, Rejection, Reply};
 
 #[derive(Clone, Debug)]
 pub struct MockServer {
@@ -17,15 +17,10 @@ pub struct OneshotHandler {
 
 impl MockServer {
     pub fn new(bind_addr: SocketAddr) -> MockServer {
-        MockServer {
-            socket: bind_addr,
-        }
+        MockServer { socket: bind_addr }
     }
 
-    async fn check_profanity(
-        _: (),
-        content: Bytes,
-    ) -> Result<impl warp::Reply, warp::Rejection> {
+    async fn check_profanity(_: (), content: Bytes) -> Result<impl Reply, Rejection> {
         let content = String::from_utf8(content.to_vec()).expect("Invalid UTF-8");
         if content.contains("shitty") {
             Ok(warp::reply::with_status(
@@ -45,7 +40,8 @@ impl MockServer {
                     "censored_content": "this is a ****** sentence",
                     "content": "this is a shitty sentence"
                 })),
-                http::StatusCode::OK))
+                http::StatusCode::OK,
+            ))
         } else {
             Ok(warp::reply::with_status(
                 warp::reply::json(&json!({
@@ -71,7 +67,7 @@ impl MockServer {
 
     pub fn oneshot(&self) -> OneshotHandler {
         let (tx, rx) = oneshot::channel::<i32>();
-        let routes = Self::build_routes(&self);
+        let routes = Self::build_routes(self);
 
         let (_, server) = warp::serve(routes).bind_with_graceful_shutdown(self.socket, async {
             rx.await.ok();
@@ -79,8 +75,6 @@ impl MockServer {
 
         tokio::task::spawn(server);
 
-        OneshotHandler {
-            sender: tx,
-        }
+        OneshotHandler { sender: tx }
     }
 }
