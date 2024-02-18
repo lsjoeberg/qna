@@ -1,13 +1,14 @@
-use handle_errors::QueryError;
 use std::collections::HashMap;
 
+use handle_errors::QueryError;
+
 /// Pagination struct that is getting extracted from query parameters
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Pagination {
     /// The index of the first item that has to be returned
-    pub start: usize,
+    pub limit: Option<i64>,
     /// The index of the last item that has to be returned
-    pub end: usize,
+    pub offset: i64,
 }
 
 /// Extract query parameters from the `/questions` route
@@ -25,17 +26,20 @@ pub struct Pagination {
 /// assert_eq!(p.end, 10);
 /// ```
 pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, QueryError> {
-    if params.contains_key("start") && params.contains_key("end") {
+    if params.contains_key("limit") && params.contains_key("offset") {
+        // Takes the "limit" parameter in the query and attempts to convert to a number.
         return Ok(Pagination {
-            start: params
-                .get("start")
+            limit: Some(
+                params
+                    .get("limit")
+                    .unwrap()
+                    .parse::<i64>()
+                    .map_err(QueryError::ParseError)?,
+            ),
+            offset: params
+                .get("offset")
                 .unwrap()
-                .parse::<usize>()
-                .map_err(QueryError::ParseError)?,
-            end: params
-                .get("end")
-                .unwrap()
-                .parse::<usize>()
+                .parse::<i64>()
                 .map_err(QueryError::ParseError)?,
         });
     }
