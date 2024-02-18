@@ -4,6 +4,7 @@ use tracing::{event, info, instrument, Level};
 use warp::http::StatusCode;
 use warp::{Rejection, Reply};
 
+use crate::profanity::check_profanity;
 use crate::store::Store;
 use crate::types::pagination::{extract_pagination, Pagination};
 use crate::types::question::{NewQuestion, Question};
@@ -33,7 +34,21 @@ pub async fn add_question(
     store: Store,
     new_question: NewQuestion,
 ) -> Result<impl Reply, Rejection> {
-    if let Err(err) = store.add_question(new_question).await {
+    let title = match check_profanity(new_question.title).await {
+        Ok(res) => res,
+        Err(err) => return Err(warp::reject::custom(err)),
+    };
+    let content = match check_profanity(new_question.content).await {
+        Ok(res) => res,
+        Err(err) => return Err(warp::reject::custom(err)),
+    };
+    let question = NewQuestion {
+        title,
+        content,
+        tags: new_question.tags,
+    };
+
+    if let Err(err) = store.add_question(question).await {
         return Err(warp::reject::custom(err));
     }
     Ok(warp::reply::with_status("Question added", StatusCode::OK))
@@ -44,6 +59,21 @@ pub async fn update_question(
     store: Store,
     question: Question,
 ) -> Result<impl Reply, Rejection> {
+    let title = match check_profanity(question.title).await {
+        Ok(res) => res,
+        Err(err) => return Err(warp::reject::custom(err)),
+    };
+    let content = match check_profanity(question.content).await {
+        Ok(res) => res,
+        Err(err) => return Err(warp::reject::custom(err)),
+    };
+    let question = Question {
+        id: question.id,
+        title,
+        content,
+        tags: question.tags,
+    };
+
     let res = match store.update_question(question, id).await {
         Ok(res) => res,
         Err(err) => return Err(warp::reject::custom(err)),
