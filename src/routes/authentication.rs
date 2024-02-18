@@ -1,3 +1,4 @@
+use std::env;
 use std::future;
 
 use argon2::Config;
@@ -10,7 +11,6 @@ use pasetors::{
     Local,
 };
 use rand::random;
-use reqwest::StatusCode;
 use warp::Filter;
 
 use crate::account::{Account, AccountId, Session};
@@ -25,7 +25,7 @@ pub async fn register(store: Store, account: Account) -> Result<impl warp::Reply
     };
 
     match store.add_account(account).await {
-        Ok(_) => Ok(warp::reply::with_status("Account created", StatusCode::OK)),
+        Ok(_) => Ok(warp::reply::json(&"Account added")),
         Err(err) => Err(warp::reject::custom(err)),
     }
 }
@@ -64,7 +64,7 @@ fn verify_password(hash: &str, password: &[u8]) -> Result<bool, argon2::Error> {
 fn issue_token(account_id: AccountId) -> String {
     let current_date_time = Utc::now();
     let dt = current_date_time + chrono::Duration::days(1);
-    let key = std::env::var("PASETO_KEY").expect("Env var PASETO_KEY must be set");
+    let key = env::var("PASETO_KEY").expect("Env var PASETO_KEY must be set");
 
     let key = SymmetricKey::<V4>::from(key.as_bytes()).expect("Invalid PASETO_KEY");
     let mut claims = Claims::new().unwrap();
@@ -82,7 +82,7 @@ fn issue_token(account_id: AccountId) -> String {
 }
 
 pub fn verify_token(token: String) -> Result<Session, handle_errors::Error> {
-    let key = std::env::var("PASETO_KEY").expect("Env var PASETO_KEY must be set");
+    let key = env::var("PASETO_KEY").expect("Env var PASETO_KEY must be set");
     let key = SymmetricKey::<V4>::from(key.as_bytes()).expect("Invalid PASETO_KEY");
     let validation_rules = ClaimsValidationRules::new();
     let untrusted_token = UntrustedToken::<Local, V4>::try_from(&token)
@@ -103,4 +103,23 @@ pub fn auth() -> impl Filter<Extract = (Session,), Error = warp::Rejection> + Cl
         };
         future::ready(Ok(token))
     })
+}
+
+#[cfg(test)]
+mod authentication_tests {
+    use super::{auth, env, issue_token, AccountId};
+
+    #[tokio::test]
+    async fn post_questions_auth() {
+        env::set_var("PASETO_KEY", "RANDOM WORDS WINTER MACINTOSH PC");
+        let token = issue_token(AccountId(3));
+
+        let filter = auth();
+
+        let res = warp::test::request()
+            .header("Authorization", token)
+            .filter(&filter);
+
+        assert_eq!(res.await.unwrap().account_id, AccountId(3));
+    }
 }
