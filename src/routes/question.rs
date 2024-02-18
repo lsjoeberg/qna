@@ -2,6 +2,7 @@ use std::cmp::min;
 use std::collections::HashMap;
 
 use handle_errors::QueryError;
+use tracing::{info, instrument};
 use warp::http::StatusCode;
 use warp::{Rejection, Reply};
 
@@ -9,13 +10,16 @@ use crate::store::Store;
 use crate::types::pagination::extract_pagination;
 use crate::types::question::{Question, QuestionId};
 
+#[instrument]
 pub async fn get_questions(
     params: HashMap<String, String>,
     store: Store,
 ) -> Result<impl Reply, Rejection> {
+    info!("querying questions");
     let res: Vec<Question> = store.questions.read().await.values().cloned().collect();
     if !params.is_empty() {
         let mut pagination = extract_pagination(params)?;
+        info!("pagination = true");
         let nq = store.questions.read().await.len();
         // Validate and sanitize parameters.
         if pagination.start > pagination.end || pagination.start > nq - 1 {
@@ -26,6 +30,7 @@ pub async fn get_questions(
         let res = &res[pagination.start..pagination.end];
         Ok(warp::reply::json(&res))
     } else {
+        info!("pagination = false");
         Ok(warp::reply::json(&res))
     }
 }
